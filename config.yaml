@@ -20,3 +20,4 @@ strategy:
   trail_ma: 10
   max_hold_days: 60
   slippage_bps: 10.0
+  entry_day_stop_mode: "conservative"
