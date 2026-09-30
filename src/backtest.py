@@ -1,9 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass
+import numpy as np
 import pandas as pd
 from .indicators import add_indicators, base_features
 
-@dataclass
+@dataclass(frozen=True)
 class Params:
     base_len: int = 15
     momentum_lookback: int = 63
@@ -20,6 +21,15 @@ class Params:
     max_hold_days: int = 60
     slippage_bps: float = 10.0
 
+def max_runup(window: pd.DataFrame) -> float:
+    """Largest low-to-later-high advance. Prevents counting a decline as momentum."""
+    lows = window["low"].to_numpy(float)
+    highs = window["high"].to_numpy(float)
+    running_low = np.minimum.accumulate(lows)
+    valid = running_low > 0
+    runups = np.where(valid, highs / running_low - 1.0, np.nan)
+    return float(np.nanmax(runups)) if np.isfinite(runups).any() else float("nan")
+
 def setup_ok(x: pd.DataFrame, i: int, p: Params):
     f = base_features(x, i, p.base_len)
     if not f:
@@ -28,7 +38,7 @@ def setup_ok(x: pd.DataFrame, i: int, p: Params):
     if pre - p.momentum_lookback < 0:
         return False, None
     w = x.iloc[pre-p.momentum_lookback:pre+1]
-    prior_move = float(w["high"].max()/w["low"].min()-1.0)
+    prior_move = max_runup(w)
     row = x.iloc[i]
     checks = [
         prior_move >= p.min_prior_move,
@@ -46,8 +56,8 @@ def setup_ok(x: pd.DataFrame, i: int, p: Params):
     f["prior_move"] = prior_move
     return bool(all(checks)), f
 
-def backtest_symbol(df: pd.DataFrame, symbol: str, p: Params) -> pd.DataFrame:
-    x = add_indicators(df).reset_index(drop=True)
+def backtest_symbol(df: pd.DataFrame, symbol: str, p: Params, prepared: bool = False) -> pd.DataFrame:
+    x = (df.copy() if prepared else add_indicators(df)).reset_index(drop=True)
     trades = []
     i = max(140, p.base_len + p.momentum_lookback + 5)
     while i < len(x)-1:
@@ -61,7 +71,8 @@ def backtest_symbol(df: pd.DataFrame, symbol: str, p: Params) -> pd.DataFrame:
             i += 1
             continue
         entry = max(float(x.iloc[j]["open"]), pivot) * (1 + p.slippage_bps/10000)
-        # Daily approximation: true Qullamaggie low-of-day stop requires intraday sequencing.
+        # Daily-data approximation. True published execution uses ORH and low-of-day.
+        # Using prior-day information here avoids intraday look-ahead.
         adr_frac = float(x.iloc[i]["adr20"]) / 100.0
         stop = max(float(x.iloc[i]["low"]), entry*(1-adr_frac))
         if stop >= entry:
