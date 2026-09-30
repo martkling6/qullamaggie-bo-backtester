@@ -21,6 +21,7 @@ class Params:
     max_hold_days: int = 60
     slippage_bps: float = 10.0
     entry_day_stop_mode: str = "conservative"
+    require_leader_scan: bool = True
 
 def max_runup(window: pd.DataFrame) -> float:
     """Largest low-to-later-high advance. Prevents counting a decline as momentum."""
@@ -41,7 +42,9 @@ def setup_ok(x: pd.DataFrame, i: int, p: Params):
     w = x.iloc[pre-p.momentum_lookback:pre+1]
     prior_move = max_runup(w)
     row = x.iloc[i]
+    leader_ok = (not p.require_leader_scan) or bool(row.get("leader_top2pct", False))
     checks = [
+        leader_ok,
         prior_move >= p.min_prior_move,
         row["close"] >= p.min_price,
         row["adr20"] >= p.min_adr,
