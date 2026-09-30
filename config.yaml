@@ -21,3 +21,4 @@ strategy:
   max_hold_days: 60
   slippage_bps: 10.0
   entry_day_stop_mode: "conservative"
+  max_initial_stop_pct: 0.06
