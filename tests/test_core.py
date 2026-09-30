@@ -23,3 +23,8 @@ def test_universe_filter_excludes_otc():
     from src.research import _listed_us
     x=pd.DataFrame({"Exchange":["NASDAQ","NYSE","PINK","OTCQB","AMEX"],"Code":["A","B","C","D","E"]})
     assert _listed_us(x)["Code"].tolist() == ["A","B","E"]
+
+
+def test_max_initial_stop_pct_configured():
+    from src.backtest import Params
+    assert Params().max_initial_stop_pct == 0.06
