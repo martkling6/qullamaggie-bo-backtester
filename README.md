@@ -1,29 +1,59 @@
 # Qullamaggie BO Backtester
 
-Research backtester for Kristjan Kullamägi's **Breakout / Momentum Continuation** setup using EODHD data.
+Systematic research project for Kristjan Kullamägi's **Breakout / Momentum Continuation** setup using EODHD historical data.
 
-## What v0.1 implements
+## Source-defined structure
 
-Primary-source structure: a strong prior move (roughly 30–100%+ over 1–3 months), an orderly 2-week-to-2-month consolidation with tightening ranges/higher lows around rising 10/20-day moving averages, followed by range expansion. ADR20 follows Kullamägi's FAQ definition: average of `High/Low - 1` over 20 sessions.
+The published setup has three core phases: (1) a strong move higher during the prior 1–3 months, commonly 30–100%+, (2) an orderly consolidation lasting roughly 2 weeks to 2 months with higher lows and tightening ranges while price surfs rising 10/20-day moving averages (sometimes 50-day), and (3) range expansion out of the consolidation. Kullamägi's FAQ defines ADR20 as the 20-session average of `High/Low - 1` in percent.
 
-This first version is intentionally **daily-data only**. Kullamägi's published execution uses opening-range highs and a low-of-day stop. Those cannot be reproduced faithfully from daily bars because the intraday order of high/low is unknown. Therefore v0.1 uses a documented approximation: breakout above the daily pivot on the next session and a stop based only on information available before entry, capped to one ADR. This avoids look-ahead bias. Intraday ORH testing is a later module.
+Published execution is intraday: entry on an opening-range high (1-, 5- or 60-minute), stop at the low of day with width no greater than ADR/ATR, sell roughly 1/3–1/2 after 3–5 days, move stop to breakeven, and trail the remainder on the 10- or 20-day moving average.
+
+## Daily-data approximation
+
+The current EODHD plan/backtest uses daily bars. Daily OHLC cannot reveal whether the breakout high or the low occurred first, so it cannot honestly reproduce an ORH entry plus same-day low stop. The research engine therefore uses a conservative, explicit approximation based only on information available before entry. This prevents intraday look-ahead. Exact ORH testing remains a later intraday module.
 
 ## Data integrity
 
-EODHD EOD OHLC is raw while `adjusted_close` includes splits and dividends. The backtester downloads historical split events and back-adjusts OHLC **for splits only** so stock splits do not create fake breakouts. EODHD's volume is already split-adjusted. The universe loader can request both active and delisted US common stocks to reduce survivorship bias.
+EODHD EOD OHLC is raw; adjusted close includes splits and dividends; volume is split-adjusted. We fetch split events and back-adjust OHLC for splits. If corporate-action rows are unavailable for an older delisted name, the loader can infer only large split-like adjustment steps from the adjusted/raw close ratio as a fallback.
 
-## GitHub Actions
+The broad-research universe is built from EODHD's US `common_stock` symbol lists. With delisted enabled it requests active and delisted lists separately, then uses a deterministic 50/50 sample. This is a validation step toward a larger survivorship-bias-aware universe, not yet a complete point-in-time CRSP-style universe.
 
-Create repository secret `EODHD_API_TOKEN`, then open **Actions → BO Backtest → Run workflow**. Start with the default five symbols. Results are uploaded as an artifact containing `trades.csv` and `summary.json`.
+## Workflows
 
-## Current test parameters
+### BO Backtest
+Small five-symbol smoke test.
 
-The values in `config.yaml` are **research hypotheses**, not claims that Kullamägi published those exact thresholds. We will sweep and validate them rather than optimizing one hand-picked setting.
+### BO Broad Research
+Default validation run:
+- 200 deterministic US common stocks
+- 100 active + 100 delisted
+- history from 2005
+- baseline strategy
+- in-sample vs out-of-sample split at 2021-01-01
+- yearly statistics
+- tail-dependence statistics
+- one-factor-at-a-time robustness checks
+
+Outputs:
+- `trades.csv`
+- `summary.json`
+- `sample_summary.csv`
+- `yearly_summary.csv`
+- `sensitivity.csv`
+- `universe.csv`
+- `data_errors.csv`
+
+The sensitivity run is deliberately **not** a grid-search winner picker. Each rule is moved one dimension at a time so we can see whether the edge is stable rather than overfit a single parameter combination.
+
+## Research hypotheses vs published rules
+
+Thresholds such as minimum ADR, exact base length, liquidity floor, contraction ratio and pivot distance are research hypotheses. They must not be presented as exact Kullamägi rules unless explicitly supported by his published material.
 
 ## Roadmap
 
-1. Validate data/split handling and daily event logic on known charts.
-2. Add parameter-grid and walk-forward/out-of-sample testing.
-3. Scale to active + delisted US common stocks.
-4. Add market-regime variants and portfolio-level capital/risk constraints.
-5. Add intraday Opening Range High execution only when suitable intraday data is available.
+1. Broad active + delisted validation and data-quality audit.
+2. Robustness by year, market regime, liquidity and volatility bucket.
+3. Walk-forward parameter selection with untouched out-of-sample periods.
+4. Portfolio simulation with overlapping positions, capital constraints and risk sizing.
+5. Larger/full historical universe in API-safe batches.
+6. Exact Opening Range High execution if suitable intraday data is added.
