@@ -83,7 +83,7 @@ def sensitivity_params(base: Params):
         candidates.append((f"trail_sma={v}", replace(base, trail_ma=v)))
     for v in [3,4,5]:
         candidates.append((f"partial_day={v}", replace(base, partial_day=v)))
-    for v in [1/3,0.50,2/3]:
+    for v in [1/3,0.50]:
         candidates.append((f"partial_fraction={v:.3f}", replace(base, partial_fraction=v)))
     candidates.append(("entry_day_stop=ignore", replace(base, entry_day_stop_mode="ignore")))
     out=[]
@@ -156,7 +156,8 @@ def main():
     sized,account_summary=simulate_risk_sized_account(
         trades,
         initial_capital=float(pcfg.get("initial_capital",10000.0)),
-        risk_per_trade=float(pcfg.get("risk_per_trade",0.06)),
+        risk_per_trade=float(pcfg.get("risk_per_trade",0.005)),
+        max_position_pct=float(pcfg.get("max_position_pct",0.30)),
     )
     sized.to_csv("results/trades_risk_sized.csv",index=False)
     Path("results/account_summary.json").write_text(json.dumps(account_summary,indent=2))
