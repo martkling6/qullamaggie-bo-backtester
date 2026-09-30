@@ -151,6 +151,7 @@ def main():
                 print(f"Downloaded {n}/{len(futs)}; usable={len(prepared)} errors={len(errors)}")
 
     pd.DataFrame(errors).to_csv("results/data_errors.csv",index=False)
+    add_leader_ranks(prepared, top_pct=0.02)
 
     all_trades=[]
     for n,(sym,df) in enumerate(prepared.items(),1):
