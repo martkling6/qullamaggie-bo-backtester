@@ -17,3 +17,9 @@ def test_split_adjustment():
     out=split_adjust_ohlc(d,s)
     assert abs(out.loc[0,"close"]-125) < 1e-9
     assert abs(out.loc[1,"close"]-125) < 1e-9
+
+
+def test_universe_filter_excludes_otc():
+    from src.research import _listed_us
+    x=pd.DataFrame({"Exchange":["NASDAQ","NYSE","PINK","OTCQB","AMEX"],"Code":["A","B","C","D","E"]})
+    assert _listed_us(x)["Code"].tolist() == ["A","B","E"]
