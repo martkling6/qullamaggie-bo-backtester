@@ -20,6 +20,7 @@ class Params:
     trail_ma: int = 10
     max_hold_days: int = 60
     slippage_bps: float = 10.0
+    entry_day_stop_mode: str = "conservative"
 
 def max_runup(window: pd.DataFrame) -> float:
     """Largest low-to-later-high advance. Prevents counting a decline as momentum."""
@@ -88,7 +89,7 @@ def backtest_symbol(df: pd.DataFrame, symbol: str, p: Params, prepared: bool = F
         k = j
         while k < min(len(x), j+p.max_hold_days):
             r = x.iloc[k]
-            if float(r["low"]) <= stop:
+            if not (k == j and p.entry_day_stop_mode == "ignore") and float(r["low"]) <= stop:
                 fill = float(r["open"]) if float(r["open"]) < stop else stop
                 realized += remaining*(fill-entry)
                 remaining = 0
