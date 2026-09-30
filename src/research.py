@@ -10,6 +10,7 @@ import pandas as pd
 import yaml
 
 from .backtest import Params, backtest_symbol
+from .capital import simulate_risk_sized_account
 from .eodhd import EODHDClient, split_adjust_ohlc
 from .indicators import add_indicators
 from .stats import split_summary, summarize, yearly_summary
@@ -80,6 +81,10 @@ def sensitivity_params(base: Params):
         candidates.append((f"contraction={v}", replace(base, max_contraction=v)))
     for v in [10,20]:
         candidates.append((f"trail_sma={v}", replace(base, trail_ma=v)))
+    for v in [3,4,5]:
+        candidates.append((f"partial_day={v}", replace(base, partial_day=v)))
+    for v in [1/3,0.50,2/3]:
+        candidates.append((f"partial_fraction={v:.3f}", replace(base, partial_fraction=v)))
     candidates.append(("entry_day_stop=ignore", replace(base, entry_day_stop_mode="ignore")))
     out=[]
     for name,p in candidates:
@@ -147,6 +152,14 @@ def main():
         "oos_start":oos
     })
     Path("results/summary.json").write_text(json.dumps(summary,indent=2))
+    pcfg=cfg.get("portfolio",{})
+    sized,account_summary=simulate_risk_sized_account(
+        trades,
+        initial_capital=float(pcfg.get("initial_capital",10000.0)),
+        risk_per_trade=float(pcfg.get("risk_per_trade",0.06)),
+    )
+    sized.to_csv("results/trades_risk_sized.csv",index=False)
+    Path("results/account_summary.json").write_text(json.dumps(account_summary,indent=2))
     split_summary(trades,oos).to_csv("results/sample_summary.csv",index=False)
     yearly_summary(trades).to_csv("results/yearly_summary.csv",index=False)
     if not trades.empty and "universe_status" in trades:
