@@ -2,6 +2,9 @@ data:
   start: "2005-01-01"
   end: null
   cache_dir: "data/cache"
+research:
+  out_of_sample_start: "2021-01-01"
+  seed: 42
 strategy:
   base_len: 15
   momentum_lookback: 63
