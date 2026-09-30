@@ -57,3 +57,17 @@ Thresholds such as minimum ADR, exact base length, liquidity floor, contraction 
 4. Portfolio simulation with overlapping positions, capital constraints and risk sizing.
 5. Larger/full historical universe in API-safe batches.
 6. Exact Opening Range High execution if suitable intraday data is added.
+
+
+## Published Qullamaggie BO profile used by this research
+
+The baseline is constrained to Kristjan Kullamägi's published Breakout framework:
+- leaders from the top 1-2% over 1-, 3- or 6-month performance;
+- a 30-100%+ prior move during roughly the prior 1-3 months;
+- an orderly 2-week to 2-month consolidation with higher lows, tightening ranges, and rising 10/20-day moving averages;
+- breakout entry; published execution prefers 1-, 5- or 60-minute opening-range highs;
+- stop at the low of day, no wider than one ADR/ATR;
+- sell 1/3 to 1/2 after 3-5 days, move the remainder stop to breakeven, and trail the rest with the 10- or 20-day moving average (10-day baseline);
+- account-risk baseline 0.5%, with a hard 30% single-position overnight cap.
+
+Important: Kullamägi publishes ranges and discretionary chart-selection language, not one fully deterministic algorithm. The current EOD-only test therefore uses mechanical proxies for qualitative setup selection and a daily execution approximation. In particular, exact ORH entry and the low-of-day stop cannot be reconstructed from daily OHLC bars without intraday sequencing. Sample runs also rank leaders relative to the sampled universe; literal whole-market top-2% ranking requires a full-universe run.
