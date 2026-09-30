@@ -1,0 +1,19 @@
+data:
+  start: "2005-01-01"
+  end: null
+  cache_dir: "data/cache"
+strategy:
+  base_len: 15
+  momentum_lookback: 63
+  min_prior_move: 0.30
+  min_adr: 4.0
+  max_contraction: 0.80
+  max_base_depth: 0.30
+  max_dist_to_pivot: 0.08
+  min_price: 5.0
+  min_dollarvol20: 5000000.0
+  partial_day: 4
+  partial_fraction: 0.50
+  trail_ma: 10
+  max_hold_days: 60
+  slippage_bps: 10.0
