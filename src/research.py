@@ -24,12 +24,20 @@ def stable_sample(df: pd.DataFrame, n: int, seed: int, status: str) -> pd.DataFr
     x["universe_status"] = status
     return x
 
+def _listed_us(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep primary US listed venues; exclude OTC/Pink/foreign OTC lines."""
+    allowed = {"NASDAQ", "NYSE", "AMEX", "NYSE MKT"}
+    x = df.copy()
+    if "Exchange" in x:
+        x = x[x["Exchange"].astype(str).str.upper().isin(allowed)]
+    return x
+
 def build_universe(client: EODHDClient, sample_size: int, seed: int, include_delisted: bool) -> pd.DataFrame:
-    active = client.symbols("US", delisted=False, common_only=True)
+    active = _listed_us(client.symbols("US", delisted=False, common_only=True))
     if not include_delisted:
         u = stable_sample(active, sample_size, seed, "active")
     else:
-        dead = client.symbols("US", delisted=True, common_only=True)
+        dead = _listed_us(client.symbols("US", delisted=True, common_only=True))
         n_dead = sample_size // 2
         n_active = sample_size - n_dead
         u = pd.concat([
@@ -72,6 +80,7 @@ def sensitivity_params(base: Params):
         candidates.append((f"contraction={v}", replace(base, max_contraction=v)))
     for v in [10,20]:
         candidates.append((f"trail_sma={v}", replace(base, trail_ma=v)))
+    candidates.append(("entry_day_stop=ignore", replace(base, entry_day_stop_mode="ignore")))
     out=[]
     for name,p in candidates:
         item=emit(name,p)
@@ -140,6 +149,13 @@ def main():
     Path("results/summary.json").write_text(json.dumps(summary,indent=2))
     split_summary(trades,oos).to_csv("results/sample_summary.csv",index=False)
     yearly_summary(trades).to_csv("results/yearly_summary.csv",index=False)
+    if not trades.empty and "universe_status" in trades:
+        status_rows=[]
+        for status,g in trades.groupby("universe_status"):
+            row={"universe_status":status}
+            row.update(summarize(g))
+            status_rows.append(row)
+        pd.DataFrame(status_rows).to_csv("results/universe_status_summary.csv",index=False)
 
     if args.sensitivity:
         rows=[]
