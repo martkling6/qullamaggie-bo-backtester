@@ -1,0 +1,43 @@
+name: BO Broad Research
+on:
+  workflow_dispatch:
+    inputs:
+      sample_size:
+        description: "Deterministic US common-stock sample"
+        required: false
+        default: "200"
+      include_delisted:
+        description: "50/50 active and delisted sample"
+        type: boolean
+        required: false
+        default: true
+      sensitivity:
+        description: "Run one-factor robustness checks"
+        type: boolean
+        required: false
+        default: true
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Broad historical research
+        env:
+          EODHD_API_TOKEN: ${{ secrets.EODHD_API_TOKEN }}
+        run: |
+          FLAGS=""
+          if [ "${{ inputs.include_delisted }}" = "true" ]; then FLAGS="$FLAGS --include-delisted"; fi
+          if [ "${{ inputs.sensitivity }}" = "true" ]; then FLAGS="$FLAGS --sensitivity"; fi
+          python -m src.research --sample-size "${{ inputs.sample_size }}" --workers 8 $FLAGS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bo-broad-research-results
+          path: results/
+          if-no-files-found: warn
