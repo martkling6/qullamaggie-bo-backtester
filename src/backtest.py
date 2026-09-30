@@ -21,7 +21,6 @@ class Params:
     max_hold_days: int = 60
     slippage_bps: float = 10.0
     entry_day_stop_mode: str = "conservative"
-    max_initial_stop_pct: float = 0.06
 
 def max_runup(window: pd.DataFrame) -> float:
     """Largest low-to-later-high advance. Prevents counting a decline as momentum."""
@@ -80,13 +79,7 @@ def backtest_symbol(df: pd.DataFrame, symbol: str, p: Params, prepared: bool = F
         if stop >= entry:
             i += 1
             continue
-        # Hard setup exclusion: do not take breakouts whose initial stop is
-        # more than the configured percentage below the entry. Do NOT cap a
-        # wider stop to 6%; reject the trade entirely.
         stop_distance_pct = (entry - stop) / entry
-        if stop_distance_pct > p.max_initial_stop_pct:
-            i += 1
-            continue
         initial_stop = stop
         risk = entry - initial_stop
         remaining = 1.0
