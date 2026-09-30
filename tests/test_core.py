@@ -25,6 +25,13 @@ def test_universe_filter_excludes_otc():
     assert _listed_us(x)["Code"].tolist() == ["A","B","E"]
 
 
-def test_max_initial_stop_pct_configured():
-    from src.backtest import Params
-    assert Params().max_initial_stop_pct == 0.06
+
+def test_risk_sized_account():
+    from src.capital import simulate_risk_sized_account
+    x=pd.DataFrame([{
+        "symbol":"TEST","entry_date":"2020-01-02","exit_date":"2020-01-03",
+        "entry":100.0,"initial_stop":95.0,"pnl_per_share":10.0
+    }])
+    sized,s=simulate_risk_sized_account(x,10000.0,0.06)
+    assert int(sized.loc[0,"shares"]) == 120
+    assert abs(s["final_capital"]-11200.0) < 1e-9
