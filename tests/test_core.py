@@ -32,6 +32,17 @@ def test_risk_sized_account():
         "symbol":"TEST","entry_date":"2020-01-02","exit_date":"2020-01-03",
         "entry":100.0,"initial_stop":95.0,"pnl_per_share":10.0
     }])
-    sized,s=simulate_risk_sized_account(x,10000.0,0.06)
-    assert int(sized.loc[0,"shares"]) == 120
-    assert abs(s["final_capital"]-11200.0) < 1e-9
+    sized,s=simulate_risk_sized_account(x,10000.0,0.005,0.30)
+    assert int(sized.loc[0,"shares"]) == 10
+    assert abs(s["final_capital"]-10100.0) < 1e-9
+
+
+def test_position_size_capped_at_30pct():
+    from src.capital import simulate_risk_sized_account
+    x=pd.DataFrame([{
+        "symbol":"TEST","entry_date":"2020-01-02","exit_date":"2020-01-03",
+        "entry":100.0,"initial_stop":99.9,"pnl_per_share":1.0
+    }])
+    sized,s=simulate_risk_sized_account(x,10000.0,0.005,0.30)
+    assert int(sized.loc[0,"shares"]) == 30
+    assert float(sized.loc[0,"notional_at_entry"]) <= 3000.0
