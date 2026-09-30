@@ -60,6 +60,27 @@ def load_one(symbol: str, cfg: dict):
     adj = split_adjust_ohlc(raw, splits)
     return symbol, add_indicators(adj), None
 
+def add_leader_ranks(prepared: dict[str, pd.DataFrame], top_pct: float = 0.02) -> None:
+    """Point-in-time cross-sectional ranks over 1m, 3m and 6m returns."""
+    parts=[]
+    for sym,df in prepared.items():
+        z=df[["date","perf21","perf63","perf126"]].copy()
+        z["symbol"]=sym
+        parts.append(z)
+    if not parts:
+        return
+    panel=pd.concat(parts,ignore_index=True)
+    rank_cols=[]
+    for c in ["perf21","perf63","perf126"]:
+        r=f"{c}_pct_rank"
+        panel[r]=panel.groupby("date")[c].rank(method="min",ascending=False,pct=True)
+        rank_cols.append(r)
+    panel["leader_top2pct"]=panel[rank_cols].le(top_pct).any(axis=1)
+    for sym,idx in panel.groupby("symbol").groups.items():
+        q=panel.loc[idx,["date","leader_top2pct"]+rank_cols]
+        prepared[sym]=prepared[sym].merge(q,on="date",how="left")
+        prepared[sym]["leader_top2pct"]=prepared[sym]["leader_top2pct"].fillna(False)
+
 def sensitivity_params(base: Params):
     """One-factor-at-a-time robustness checks, not a best-parameter optimizer."""
     seen=set()
