@@ -5,15 +5,18 @@ import pandas as pd
 def simulate_risk_sized_account(
     trades: pd.DataFrame,
     initial_capital: float = 10_000.0,
-    risk_per_trade: float = 0.06,
+    risk_per_trade: float = 0.005,
+    max_position_pct: float = 0.30,
 ) -> tuple[pd.DataFrame, dict]:
     """Risk-size trades and compound a model account.
 
-    shares = floor((equity * risk_per_trade) / (entry - initial_stop))
+    risk_shares = floor((equity * risk_per_trade) / (entry - initial_stop))
+    cap_shares  = floor((equity * max_position_pct) / entry)
+    shares      = min(risk_shares, cap_shares)
 
-    Equity is updated when trades exit. Multiple positions may overlap; this
-    first portfolio model does not impose a buying-power/notional cap, so it
-    also reports peak concurrent initial risk. FX is ignored: EUR is treated
+    This follows the published risk framework mechanically: size from the
+    stop-defined account risk, then cap any single overnight position at 30%
+    of equity. Multiple positions may overlap. FX is ignored: EUR is treated
     as the account reporting unit while stock P&L is converted 1:1 for the
     purpose of testing percentage compounding.
     """
@@ -23,6 +26,7 @@ def simulate_risk_sized_account(
             "final_capital": initial_capital,
             "return_pct": 0.0,
             "risk_per_trade": risk_per_trade,
+            "max_position_pct": max_position_pct,
             "max_concurrent_initial_risk_pct": 0.0,
         }
 
@@ -59,12 +63,16 @@ def simulate_risk_sized_account(
             if per_share <= 0 or equity <= 0:
                 continue
             risk_cash=equity*risk_per_trade
-            shares=math.floor(risk_cash/per_share)
+            risk_shares=math.floor(risk_cash/per_share)
+            cap_shares=math.floor((equity*max_position_pct)/float(row["entry"]))
+            shares=min(risk_shares,cap_shares)
             if shares < 1:
                 continue
             actual_risk=shares*per_share
             rec={
                 "shares":shares,
+                "risk_sized_shares":risk_shares,
+                "position_cap_shares":cap_shares,
                 "risk_cash_target":risk_cash,
                 "initial_risk_cash":actual_risk,
                 "equity_at_entry":equity,
@@ -92,7 +100,8 @@ def simulate_risk_sized_account(
         "final_capital":float(equity),
         "return_pct":float((equity/initial_capital-1)*100),
         "risk_per_trade":float(risk_per_trade),
+        "max_position_pct":float(max_position_pct),
         "max_concurrent_initial_risk_pct":float(peak_open_risk*100),
-        "model_note":"No notional/buying-power cap; FX ignored in this research model."
+        "model_note":"Single-position notional capped at 30% of equity; FX ignored in this research model."
     }
     return sized,summary
