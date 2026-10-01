@@ -239,7 +239,13 @@ def main():
                     raise RuntimeError(err or "daily reload failed")
                 daily_cache[sym]=daily
             daily=daily_cache[sym]
-            bars=client.intraday_day(sym,str(pd.Timestamp(row["breakout_date"]).date()),"1m")
+            bdate=pd.Timestamp(row["breakout_date"])
+            # EODHD documents intraday history for delisted companies only
+            # when they were delisted after 2021. Avoid pretending older
+            # delisted names have exact ORH execution data.
+            if row.get("universe_status")=="delisted" and bdate < pd.Timestamp("2021-01-01"):
+                raise RuntimeError("intraday_unavailable_for_pre2021_delisted")
+            bars=client.intraday_day(sym,str(bdate.date()),"1m")
             if bars.empty:
                 raise RuntimeError("no intraday bars")
             exr=execute_orh(
