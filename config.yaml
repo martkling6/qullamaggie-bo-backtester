@@ -27,3 +27,6 @@ portfolio:
   risk_per_trade: 0.005
   max_position_pct: 0.30
   currency: "EUR"
+intraday:
+  opening_range_minutes: 5
+  max_stop_adr_multiple: 1.0
