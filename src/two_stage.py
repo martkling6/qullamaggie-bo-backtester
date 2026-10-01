@@ -256,6 +256,12 @@ def main():
                 daily_cache[sym]=daily
             daily=daily_cache[sym]
             bdate=pd.Timestamp(row["breakout_date"])
+            dmatch=daily[pd.to_datetime(daily["date"]).dt.normalize()==bdate.normalize()]
+            if dmatch.empty:
+                raise RuntimeError("breakout date missing after exact split reload")
+            exact_sf=float(dmatch.iloc[0].get("split_factor",1.0))
+            inferred_sf=float(row["split_factor"]) if pd.notna(row["split_factor"]) else 1.0
+            exact_pivot=float(row["pivot"])*(exact_sf/inferred_sf if inferred_sf>0 else 1.0)
             # EODHD documents intraday history for delisted companies only
             # when they were delisted after 2021. Avoid pretending older
             # delisted names have exact ORH execution data.
@@ -265,8 +271,8 @@ def main():
             if bars.empty:
                 raise RuntimeError("no intraday bars")
             exr=execute_orh(
-                bars,pivot=float(row["pivot"]),adr_pct=float(row["adr20"]),
-                split_factor=float(row["split_factor"]),cfg=ex_cfg
+                bars,pivot=exact_pivot,adr_pct=float(row["adr20"]),
+                split_factor=exact_sf,cfg=ex_cfg
             )
             if exr is None:
                 continue
