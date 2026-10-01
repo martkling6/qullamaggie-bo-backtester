@@ -70,6 +70,49 @@ class EODHDClient:
         df["date"] = pd.to_datetime(df["date"])
         return df.sort_values("date").reset_index(drop=True)
 
+    def intraday_day(self, symbol: str, day: str, interval: str = "1m", refresh: bool = False) -> pd.DataFrame:
+        """Fetch one US trading day of raw intraday OHLCV bars.
+
+        EODHD intraday prices are raw/unadjusted. The execution layer applies
+        the candidate day's split factor so they share the same scale as the
+        split-adjusted daily research data.
+        """
+        from datetime import datetime, timedelta, timezone
+        from zoneinfo import ZoneInfo
+
+        safe = symbol.replace("/", "_")
+        fp = self.cache_dir / "intraday" / f"{safe}_{day}_{interval}.csv"
+        fp.parent.mkdir(parents=True, exist_ok=True)
+        if fp.exists() and not refresh:
+            return pd.read_csv(fp, parse_dates=["datetime"])
+
+        d = pd.Timestamp(day).date()
+        ny = ZoneInfo("America/New_York")
+        start_local = datetime(d.year, d.month, d.day, 4, 0, tzinfo=ny)
+        end_local = datetime(d.year, d.month, d.day, 20, 0, tzinfo=ny)
+        params = {
+            "fmt": "json",
+            "interval": interval,
+            "from": int(start_local.astimezone(timezone.utc).timestamp()),
+            "to": int(end_local.astimezone(timezone.utc).timestamp()),
+        }
+        raw = self._get(f"intraday/{symbol}", params)
+        df = pd.DataFrame(raw)
+        if df.empty:
+            return df
+        if "datetime" in df:
+            dt = pd.to_datetime(df["datetime"], utc=True, errors="coerce")
+        elif "timestamp" in df:
+            dt = pd.to_datetime(pd.to_numeric(df["timestamp"], errors="coerce"), unit="s", utc=True)
+        else:
+            raise ValueError("Intraday response has no datetime/timestamp field")
+        df["datetime"] = dt.dt.tz_convert("America/New_York")
+        for c in ["open","high","low","close","volume"]:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+        df = df.dropna(subset=["datetime","open","high","low","close"]).sort_values("datetime")
+        df.to_csv(fp, index=False)
+        return df.reset_index(drop=True)
+
 def _infer_split_factor(df: pd.DataFrame, threshold: float = 0.20) -> pd.Series:
     """Infer large split-like adjustment steps from adjusted_close/close.
 
