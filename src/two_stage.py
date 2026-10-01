@@ -262,6 +262,7 @@ def main():
             rec=row.to_dict()
             rec.update(exr)
             rec.update(m)
+            rec["entry_date"]=pd.Timestamp(row["breakout_date"])
             rec["initial_stop_pct"]=(rec["entry"]-rec["initial_stop"])/rec["entry"]
             trades.append(rec)
         except Exception as e:
