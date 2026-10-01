@@ -152,6 +152,7 @@ def main():
     ap.add_argument("--workers",type=int,default=12)
     ap.add_argument("--include-delisted",action="store_true")
     ap.add_argument("--opening-range",type=int,default=None,choices=[1,5,30])
+    ap.add_argument("--daily-only",action="store_true",help="Stop after full-universe candidate ranking")
     args=ap.parse_args()
 
     cfg=yaml.safe_load(Path(args.config).read_text())
@@ -241,6 +242,14 @@ def main():
     candidates=con.execute(leader_sql).df()
     candidates.to_csv("results/candidates_top2pct.csv",index=False)
     print(f"Top-2% candidates: {len(candidates)}")
+    if args.daily_only:
+        Path("results/summary.json").write_text(json.dumps({
+            "universe_symbols":int(len(u)),
+            "top2pct_candidates":int(len(candidates)),
+            "stage":"daily_candidates_only"
+        },indent=2))
+        con.close()
+        return
 
     trades=[]
     intraday_errors=[]
