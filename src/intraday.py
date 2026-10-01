@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from datetime import time
 import pandas as pd
 
 @dataclass(frozen=True)
@@ -15,7 +16,7 @@ def regular_session(bars: pd.DataFrame) -> pd.DataFrame:
     dt=pd.to_datetime(x["datetime"], utc=True, errors="coerce")
     x["datetime"]=dt.dt.tz_convert("America/New_York")
     t=x["datetime"].dt.time
-    return x[(t >= pd.Timestamp("09:30").time()) & (t < pd.Timestamp("16:00").time())].reset_index(drop=True)
+    return x[(t >= time(9,30)) & (t < time(16,0))].reset_index(drop=True)
 
 def execute_orh(
     bars: pd.DataFrame,
