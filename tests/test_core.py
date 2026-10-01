@@ -81,3 +81,21 @@ def test_orh_rejects_stop_wider_than_one_adr():
     r=execute_orh(bars,pivot=105.0,adr_pct=5.0,
                   cfg=IntradayExecution(opening_range_minutes=5,slippage_bps=0))
     assert r is None
+
+
+def test_partial_then_breakeven_stop():
+    from src.two_stage import manage_after_entry
+    dates=pd.date_range("2024-01-02",periods=6,freq="B")
+    d=pd.DataFrame({
+        "date":dates,
+        "open":[100,102,103,104,100,100],
+        "high":[105,104,105,106,101,101],
+        "low":[99,101,102,103,99,99],
+        "close":[103,103,104,105,100,100],
+        "sma10":[95,96,97,98,99,99],
+    })
+    r=manage_after_entry(d,dates[0],100.0,98.0,4,0.5,10,60,None)
+    # Day 4: sell half at 105 (+2.5/share weighted). Stop moves to 100.
+    # Day 5 trades through 100, so remaining half exits at 100.
+    assert abs(r["pnl_per_share"]-2.5) < 1e-9
+    assert r["exit_reason"]=="stop"
