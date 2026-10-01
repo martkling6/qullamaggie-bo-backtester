@@ -1,0 +1,44 @@
+name: Qullamaggie Two Stage Backtest
+on:
+  workflow_dispatch:
+    inputs:
+      max_symbols:
+        description: "0 = full NYSE/NASDAQ/AMEX common-stock universe; use 200 only for a smoke test"
+        required: false
+        default: "0"
+      include_delisted:
+        description: "Include delisted stocks"
+        type: boolean
+        required: false
+        default: true
+      opening_range:
+        description: "Opening range minutes (1, 5, or 30; 30 = first 9:30-10:00 candle of 60m chart)"
+        type: choice
+        options: ["1","5","30"]
+        default: "5"
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Unit tests
+        run: python -m pytest -q
+      - name: Full-universe daily screen plus intraday execution
+        env:
+          EODHD_API_TOKEN: ${{ secrets.EODHD_API_TOKEN }}
+        run: |
+          FLAGS=""
+          if [ "${{ inputs.include_delisted }}" = "true" ]; then FLAGS="$FLAGS --include-delisted"; fi
+          python -m src.two_stage --max-symbols "${{ inputs.max_symbols }}" --workers 12 --opening-range "${{ inputs.opening_range }}" $FLAGS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qullamaggie-two-stage-results
+          path: results/
+          if-no-files-found: warn
