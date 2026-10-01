@@ -71,3 +71,22 @@ The baseline is constrained to Kristjan Kullamägi's published Breakout framewor
 - account-risk baseline 0.5%, with a hard 30% single-position overnight cap.
 
 Important: Kullamägi publishes ranges and discretionary chart-selection language, not one fully deterministic algorithm. The current EOD-only test therefore uses mechanical proxies for qualitative setup selection and a daily execution approximation. In particular, exact ORH entry and the low-of-day stop cannot be reconstructed from daily OHLC bars without intraday sequencing. Sample runs also rank leaders relative to the sampled universe; literal whole-market top-2% ranking requires a full-universe run.
+
+
+## Two-stage production backtest
+
+Use the GitHub Actions workflow **Qullamaggie Two Stage Backtest** for the serious test.
+
+Stage 1 scans the full eligible US common-stock universe (active + delisted), computes 1/3/6-month point-in-time momentum ranks across the whole universe, and retains only setup candidates that are in the top 2% on at least one horizon.
+
+Stage 2 downloads 1-minute bars only for those candidate breakout days and executes the opening-range entry. The default is the 5-minute ORH; 1-minute and the 9:30-10:00 opening range can be run as source-supported variants.
+
+### Stop model
+
+The initial stop is the **lowest regular-session price observed before the ORH trigger**. This is the information that would actually have been known when sizing the trade. A completed day's final low is never used to size the position because that would be look-ahead bias. If entry-to-stop distance is wider than 1x ADR20, the setup is rejected rather than moving the stop closer.
+
+After entry, later 1-minute bars can trigger the initial stop. A gap/open below the stop fills at the bar open. After the configured partial sale (baseline: 50% on trading day 4), the stop on the remaining shares moves to the original entry price. The remainder exits on the first daily **close** below SMA10; SMA10 is not treated as an intraday stop order.
+
+### Data-coverage caveat
+
+EODHD documents US 1-minute history from 2004 for NYSE/NASDAQ, but delisted-company intraday availability is materially narrower: delisted before 2018 are EOD-only, 2018-2021 add fundamentals/dividends/splits, and only post-2021 delistings include intraday. Therefore pre-2021 exact-intraday results cannot be fully survivorship-bias-free. The workflow records those missing executions explicitly instead of silently replacing them with daily approximations.
