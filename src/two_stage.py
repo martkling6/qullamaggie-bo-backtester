@@ -172,7 +172,7 @@ def main():
     con=duckdb.connect(str(db_path))
     con.execute("CREATE TABLE daily_rank(date DATE, symbol VARCHAR, perf21 DOUBLE, perf63 DOUBLE, perf126 DOUBLE)")
     con.execute("""CREATE TABLE candidates_pre(
-        symbol VARCHAR, setup_date DATE, breakout_date DATE, pivot DOUBLE,
+        symbol VARCHAR, setup_date DATE, breakout_date DATE, pivot_price DOUBLE,
         adr20 DOUBLE, prior_move DOUBLE, contraction DOUBLE, base_depth DOUBLE,
         split_factor DOUBLE, universe_status VARCHAR)""")
 
@@ -204,7 +204,7 @@ def main():
                         c["universe_status"]=status.get(symbol,"unknown")
                         con.register("cand_chunk",c)
                         con.execute("""INSERT INTO candidates_pre
-                            SELECT symbol,setup_date,breakout_date,pivot,adr20,prior_move,
+                            SELECT symbol,setup_date,breakout_date,pivot AS pivot_price,adr20,prior_move,
                                    contraction,base_depth,split_factor,universe_status
                             FROM cand_chunk""")
                         con.unregister("cand_chunk")
@@ -233,7 +233,7 @@ def main():
         percent_rank() OVER(PARTITION BY date ORDER BY perf126 DESC NULLS LAST) AS rank126
       FROM universe_on_dates
     )
-    SELECT c.*,r.rank21,r.rank63,r.rank126
+    SELECT c.symbol,c.setup_date,c.breakout_date,c.pivot_price AS pivot,c.adr20,c.prior_move,c.contraction,c.base_depth,c.split_factor,c.universe_status,r.rank21,r.rank63,r.rank126
     FROM candidates_pre c
     JOIN ranked r ON r.date=c.setup_date AND r.symbol=c.symbol
     WHERE least(coalesce(r.rank21,1),coalesce(r.rank63,1),coalesce(r.rank126,1)) <= 0.02
