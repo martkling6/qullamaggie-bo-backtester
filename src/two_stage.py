@@ -11,10 +11,26 @@ import yaml
 
 from .backtest import Params, setup_ok
 from .capital import simulate_risk_sized_account
-from .eodhd import EODHDClient
+from .eodhd import EODHDClient, split_adjust_ohlc
 from .intraday import IntradayExecution, execute_orh
 from .research import _listed_us, load_one
+from .indicators import add_indicators
 from .stats import summarize, split_summary, yearly_summary
+
+def load_one_fast(symbol: str, cfg: dict):
+    """One-call universe loader.
+
+    Full-universe discovery uses EOD only and infers large split steps from
+    adjusted_close/close. Exact split-event calls are deferred until a symbol
+    actually becomes a top-2% candidate, which keeps a full historical run
+    within the API budget.
+    """
+    client=EODHDClient(cache_dir=cfg["data"]["cache_dir"])
+    raw=client.eod(symbol,cfg["data"]["start"],cfg["data"].get("end"))
+    if raw.empty or len(raw)<160:
+        return symbol,None,"insufficient_history"
+    adj=split_adjust_ohlc(raw,None)
+    return symbol,add_indicators(adj),None
 
 def full_universe(client: EODHDClient, include_delisted: bool = True) -> pd.DataFrame:
     active=_listed_us(client.symbols("US",delisted=False,common_only=True)).copy()
@@ -169,7 +185,7 @@ def main():
 
     errors=[]
     with ThreadPoolExecutor(max_workers=max(1,args.workers)) as ex:
-        futs={ex.submit(load_one,s,cfg):s for s in u["symbol"]}
+        futs={ex.submit(load_one_fast,s,cfg):s for s in u["symbol"]}
         for n,f in enumerate(as_completed(futs),1):
             sym=futs[f]
             try:
