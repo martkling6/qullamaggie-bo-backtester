@@ -46,3 +46,38 @@ def test_position_size_capped_at_30pct():
     sized,s=simulate_risk_sized_account(x,10000.0,0.005,0.30)
     assert int(sized.loc[0,"shares"]) == 30
     assert float(sized.loc[0,"notional_at_entry"]) <= 3000.0
+
+
+def test_orh_stop_is_observed_low_and_no_future_lookahead():
+    from src.intraday import IntradayExecution, execute_orh
+    times=pd.date_range("2024-01-02 14:30:00+00:00",periods=8,freq="min")
+    bars=pd.DataFrame({
+        "datetime":times,
+        "open":[100,100.2,100.4,100.5,100.7,101.0,101.2,100.0],
+        "high":[100.4,100.5,100.6,100.8,101.0,101.5,101.4,100.5],
+        "low":[99.5,99.8,100.0,100.2,100.4,100.9,100.8,99.0],
+        "close":[100.2,100.4,100.5,100.7,100.9,101.3,101.0,99.5],
+        "volume":[1000]*8,
+    })
+    r=execute_orh(bars,pivot=101.0,adr_pct=3.0,
+                  cfg=IntradayExecution(opening_range_minutes=5,slippage_bps=0))
+    assert r is not None
+    assert abs(r["entry"]-101.0) < 1e-9
+    assert abs(r["initial_stop"]-99.5) < 1e-9
+    assert r["stopped_entry_day"] is True
+    assert abs(r["entry_day_stop_fill"]-99.5) < 1e-9
+
+def test_orh_rejects_stop_wider_than_one_adr():
+    from src.intraday import IntradayExecution, execute_orh
+    times=pd.date_range("2024-01-02 14:30:00+00:00",periods=6,freq="min")
+    bars=pd.DataFrame({
+        "datetime":times,
+        "open":[100,100,100,100,100,105],
+        "high":[101,101,101,101,101,106],
+        "low":[95,96,97,98,99,104],
+        "close":[100,100,100,100,100,105],
+        "volume":[1000]*6,
+    })
+    r=execute_orh(bars,pivot=105.0,adr_pct=5.0,
+                  cfg=IntradayExecution(opening_range_minutes=5,slippage_bps=0))
+    assert r is None
