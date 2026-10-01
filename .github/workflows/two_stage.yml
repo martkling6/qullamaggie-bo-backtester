@@ -16,6 +16,11 @@ on:
         type: choice
         options: ["1","5","30"]
         default: "5"
+      run_intraday:
+        description: "Run exact ORH execution (requires EOD+Intraday plan)"
+        type: boolean
+        required: false
+        default: false
 jobs:
   backtest:
     runs-on: ubuntu-latest
@@ -35,6 +40,7 @@ jobs:
         run: |
           FLAGS=""
           if [ "${{ inputs.include_delisted }}" = "true" ]; then FLAGS="$FLAGS --include-delisted"; fi
+          if [ "${{ inputs.run_intraday }}" != "true" ]; then FLAGS="$FLAGS --daily-only"; fi
           python -m src.two_stage --max-symbols "${{ inputs.max_symbols }}" --workers 12 --opening-range "${{ inputs.opening_range }}" $FLAGS
       - uses: actions/upload-artifact@v4
         if: always()
