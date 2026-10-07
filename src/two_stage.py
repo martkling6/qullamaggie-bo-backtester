@@ -216,7 +216,10 @@ def main():
     pd.DataFrame(errors).to_csv("results/data_errors.csv",index=False)
 
     # Rank against ALL available stocks on each candidate setup date, not just
-    # against candidates and not against a random sample.
+    # against candidates and not against a random sample. IMPORTANT: SQL LEAST
+    # with NULL/coalesce previously converted missing horizons to rank=1 and
+    # then required *all* horizons to be top 2%. Qullamaggie leader logic is
+    # top 1-2% on ANY of 1/3/6-month performance, so use explicit ORs.
     leader_sql="""
     WITH candidate_dates AS (
       SELECT DISTINCT setup_date AS date FROM candidates_pre
@@ -236,7 +239,9 @@ def main():
     SELECT c.symbol,c.setup_date,c.breakout_date,c.pivot_price AS pivot,c.adr20,c.prior_move,c.contraction,c.base_depth,c.split_factor,c.universe_status,r.rank21,r.rank63,r.rank126
     FROM candidates_pre c
     JOIN ranked r ON r.date=c.setup_date AND r.symbol=c.symbol
-    WHERE least(coalesce(r.rank21,1),coalesce(r.rank63,1),coalesce(r.rank126,1)) <= 0.02
+    WHERE (r.rank21 IS NOT NULL AND r.rank21 <= 0.02)
+       OR (r.rank63 IS NOT NULL AND r.rank63 <= 0.02)
+       OR (r.rank126 IS NOT NULL AND r.rank126 <= 0.02)
     ORDER BY c.breakout_date,c.symbol
     """
     candidates=con.execute(leader_sql).df()
