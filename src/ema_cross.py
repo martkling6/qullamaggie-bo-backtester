@@ -108,16 +108,21 @@ def main():
     if uni.empty:raise RuntimeError("No NASDAQ technology symbols: inspect EODHD Exchange/Sector metadata; do not silently run an empty backtest.")
     uni=uni.sort_values("Code")
     selected=[];sector_errors=[]
+    consecutive_errors=0
     for code in uni.Code:
         try:
             fund=client._get(f"fundamentals/{code}.US",{"filter":"General"})
+            consecutive_errors=0
             if isinstance(fund,dict) and "General" not in fund:fund={"General":fund}
             if is_technology(fund):selected.append(code)
         except Exception as e:
+            consecutive_errors+=1
             sector_errors.append({"symbol":str(code)+".US","error":str(e)})
+            if consecutive_errors>=5:
+                raise RuntimeError(f"Fundamentals API failed 5 consecutive times; first error: {sector_errors[0]}; last error: {sector_errors[-1]}") from e
         if args.max_symbols>0 and len(selected)>=args.max_symbols:break
     uni=uni[uni.Code.isin(selected)].copy()
-    if uni.empty:raise RuntimeError(f"No technology stocks verified from fundamentals; errors={len(sector_errors)}")
+    if uni.empty:raise RuntimeError(f"No technology stocks verified; API errors={len(sector_errors)}; sample={sector_errors[:3]}")
     Path("results/ema_cross").mkdir(parents=True,exist_ok=True)
     uni.to_csv("results/ema_cross/universe.csv",index=False)
     def load(sym):
