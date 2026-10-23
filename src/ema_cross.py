@@ -62,7 +62,7 @@ def simulate(trades,risk_fraction,initial=10000.,leverage=5.,fee_bps=10.,max_sto
         entry_date=pd.Timestamp(t["entry_date"])
         still=[]
         for p in open_positions:
-            if pd.Timestamp(p["exit_date"])<entry_date:capital+=p["pnl_eur"]
+            if pd.Timestamp(p["exit_date"])<entry_date:capital+=p["margin"]+p["pnl_eur"]
             else:still.append(p)
         open_positions=still
         # Cash / margin is reserved until exit. Conservative: unrealized PnL not counted.
