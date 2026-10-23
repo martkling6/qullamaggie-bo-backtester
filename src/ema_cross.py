@@ -8,9 +8,12 @@ from .eodhd import EODHDClient, split_adjust_ohlc
 def nasdaq_technology(universe):
     x=universe.copy()
     exchange=x.get("Exchange",pd.Series("",index=x.index)).fillna("").astype(str).str.upper()
-    sector=x.get("Sector",pd.Series("",index=x.index)).fillna("").astype(str).str.lower()
     typ=x.get("Type",pd.Series("",index=x.index)).fillna("").astype(str).str.lower()
-    return x[exchange.str.contains("NASDAQ",regex=False) & sector.str.contains("technology|information technology",regex=True) & (~typ.str.contains("etf|fund|preferred|warrant",regex=True)) & x["Code"].notna()].drop_duplicates("Code")
+    return x[exchange.str.contains("NASDAQ",regex=False) & (~typ.str.contains("etf|fund|preferred|warrant",regex=True)) & x["Code"].notna()].drop_duplicates("Code")
+
+def is_technology(fundamentals):
+    general=fundamentals.get("General",{}) if isinstance(fundamentals,dict) else {}
+    return str(general.get("Sector","")).lower() in ("technology","information technology")
 
 def signals(df):
     x=df.sort_values("date").copy().reset_index(drop=True)
@@ -104,7 +107,17 @@ def main():
     uni=nasdaq_technology(pd.concat(u,ignore_index=True))
     if uni.empty:raise RuntimeError("No NASDAQ technology symbols: inspect EODHD Exchange/Sector metadata; do not silently run an empty backtest.")
     uni=uni.sort_values("Code")
-    if args.max_symbols>0:uni=uni.head(args.max_symbols)
+    selected=[];sector_errors=[]
+    for code in uni.Code:
+        try:
+            fund=client._get(f"fundamentals/{code}.US",{"filter":"General"})
+            if isinstance(fund,dict) and "General" not in fund:fund={"General":fund}
+            if is_technology(fund):selected.append(code)
+        except Exception as e:
+            sector_errors.append({"symbol":str(code)+".US","error":str(e)})
+        if args.max_symbols>0 and len(selected)>=args.max_symbols:break
+    uni=uni[uni.Code.isin(selected)].copy()
+    if uni.empty:raise RuntimeError(f"No technology stocks verified from fundamentals; errors={len(sector_errors)}")
     Path("results/ema_cross").mkdir(parents=True,exist_ok=True)
     uni.to_csv("results/ema_cross/universe.csv",index=False)
     def load(sym):
@@ -123,6 +136,7 @@ def main():
                 rows,_=f.result();trades.extend(rows)
             except Exception as e:errors.append(dict(symbol=fut[f],error=str(e)))
     pd.DataFrame(trades).to_csv("results/ema_cross/signals.csv",index=False)
+    errors.extend(sector_errors)
     pd.DataFrame(errors,columns=["symbol","error"]).to_csv("results/ema_cross/errors.csv",index=False)
     summaries=[]
     for risk in (.05,.07,.10):
