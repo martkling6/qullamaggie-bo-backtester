@@ -88,7 +88,7 @@ def simulate(trades,risk_fraction,initial=10000.,leverage=5.,fee_bps=10.,max_sto
                  planned_risk=shares*(t["entry"]-t["initial_stop"]),pnl_eur=pnl,
                  equity_at_entry=equity)
         open_positions.append(row);out.append(row)
-    for p in open_positions:capital+=p["pnl_eur"]
+    for p in open_positions:capital+=p["margin"]+p["pnl_eur"]
     return out,dict(risk_pct=int(risk_fraction*100),initial_capital=initial,ending_capital=round(capital,2),
                     return_pct=round((capital/initial-1)*100,2),trades=len(out),skipped=skipped)
 
@@ -106,23 +106,25 @@ def main():
     if args.include_delisted:u.append(client.symbols("US",delisted=True,common_only=True))
     uni=nasdaq_technology(pd.concat(u,ignore_index=True))
     if uni.empty:raise RuntimeError("No NASDAQ technology symbols: inspect EODHD Exchange/Sector metadata; do not silently run an empty backtest.")
-    uni=uni.sort_values("Code")
-    selected=[];sector_errors=[]
-    consecutive_errors=0
-    for code in uni.Code:
-        try:
-            fund=client._get(f"fundamentals/{code}.US",{"filter":"General"})
-            consecutive_errors=0
-            if isinstance(fund,dict) and "General" not in fund:fund={"General":fund}
-            if is_technology(fund):selected.append(code)
-        except Exception as e:
-            consecutive_errors+=1
-            sector_errors.append({"symbol":str(code)+".US","error":str(e)})
-            if consecutive_errors>=5:
-                raise RuntimeError(f"Fundamentals API failed 5 consecutive times; first error: {sector_errors[0]}; last error: {sector_errors[-1]}") from e
-        if args.max_symbols>0 and len(selected)>=args.max_symbols:break
-    uni=uni[uni.Code.isin(selected)].copy()
-    if uni.empty:raise RuntimeError(f"No technology stocks verified; API errors={len(sector_errors)}; sample={sector_errors[:3]}")
+    # Curated NASDAQ-listed technology stock sample. EODHD Fundamentals is
+    # unavailable on EOD+Intraday subscriptions (HTTP 403). Do not pretend
+    # this static watchlist is the complete or point-in-time sector universe.
+    tech_codes = {
+        "AAPL","MSFT","NVDA","AMD","INTC","AVGO","ADBE","CSCO","QCOM",
+        "AMAT","LRCX","KLAC","MU","MRVL","ADI","NXPI","MCHP","ON",
+        "CDNS","SNPS","FTNT","PANW","CRWD","ZS","OKTA","DDOG",
+        "MDB","NET","TEAM","WDAY","PAYC","PAYX","ADP","INTU",
+        "ORCL","APP","PLTR","SMCI","DELL","HPQ","HPE","NTAP",
+        "WDC","STX","AKAM","ANSS","CTSH","EPAM","GDDY","DOCU",
+        "ZM","S","CYBR","CHKP","GEN","FSLY","RPD","TENB",
+        "SPLK","VMW","XLNX","ATVI","SWKS","QRVO","MPWR","TER",
+        "ENTG","LSCC","COHR","OLED","ALGM","ASML","ARM","GFS"
+    }
+    uni=uni[uni.Code.astype(str).isin(tech_codes)].sort_values("Code").copy()
+    if args.max_symbols>0:uni=uni.head(args.max_symbols)
+    if uni.empty:raise RuntimeError("No curated technology tickers match the NASDAQ exchange list")
+    sector_errors=[]
+    print(f"Curated technology watchlist: {len(uni)} matching NASDAQ symbols; NOT a complete historical sector universe",flush=True)
     Path("results/ema_cross").mkdir(parents=True,exist_ok=True)
     uni.to_csv("results/ema_cross/universe.csv",index=False)
     def load(sym):
@@ -150,6 +152,6 @@ def main():
         summaries.append(s)
     pd.DataFrame(summaries).to_csv("results/ema_cross/comparison.csv",index=False)
     Path("results/ema_cross/summary.json").write_text(json.dumps(dict(symbols=len(uni),raw_signals=len(trades),errors=len(errors),scenarios=summaries,
-      caveats=["USD prices and USD capital: no EUR/USD conversion","EOD daily-bar fills; no broker CFD spreads, overnight financing or real margin rules","Daily bars cannot resolve intraday stop sequencing","Historical NASDAQ technology membership and delisted coverage are not point-in-time verified","5:1 leverage is an assumption, not broker validation"]),indent=2))
+      caveats=["USD prices and USD capital: no EUR/USD conversion","EOD daily-bar fills; no broker CFD spreads, overnight financing or real margin rules","Daily bars cannot resolve intraday stop sequencing","Curated technology watchlist only; NOT all NASDAQ tech stocks; historical sector membership not point-in-time verified","5:1 leverage is an assumption, not broker validation"]),indent=2))
     print(json.dumps(summaries,indent=2))
 if __name__=="__main__":main()
