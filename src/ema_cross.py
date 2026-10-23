@@ -19,14 +19,28 @@ def signals(df):
     x=df.sort_values("date").copy().reset_index(drop=True)
     x["ema10"]=x.close.ewm(span=10,adjust=False,min_periods=20).mean()
     x["ema20"]=x.close.ewm(span=20,adjust=False,min_periods=20).mean()
+    x["ema200"]=x.close.ewm(span=200,adjust=False,min_periods=200).mean()
+    x["ema200_rising"]=x.ema200>x.ema200.shift(1)
     x["cross"]=(x.ema10>x.ema20)&(x.ema10.shift(1)<=x.ema20.shift(1))
     return x
+
+def max_90d_runup(x, signal_idx):
+    """Largest low-to-later-high rise within last 90 completed trading days."""
+    window=x.iloc[signal_idx-89:signal_idx+1]
+    if len(window)!=90:return float("nan")
+    lows=window["low"].to_numpy(dtype=float)
+    highs=window["high"].to_numpy(dtype=float)
+    prior_min=pd.Series(lows).cummin().shift(1).to_numpy()
+    return float(max(highs[1:]/prior_min[1:]-1))
 
 def trade_signals(x,symbol,buffer_pct=.001):
     trades=[]
     # Entries are next-session opens; entry signal uses only previous close.
-    for i in range(21,len(x)-6):
+    for i in range(201,len(x)-6):
         if not bool(x.at[i-1,"cross"]): continue
+        if not bool(x.at[i-1,"ema200_rising"]): continue
+        move90=max_90d_runup(x,i-1)
+        if not (0.30<=move90<=1.00): continue
         entry=float(x.at[i,"open"])
         stop=float(x.at[i-1,"low"])*(1-buffer_pct)
         if not (math.isfinite(entry) and math.isfinite(stop) and 0<stop<entry): continue
@@ -55,7 +69,8 @@ def trade_signals(x,symbol,buffer_pct=.001):
         if exit_idx is None:continue
         trades.append(dict(symbol=symbol,signal_date=str(x.at[i-1,"date"].date()),entry_date=str(x.at[i,"date"].date()),
             exit_date=str(x.at[exit_idx,"date"].date()),entry=entry,initial_stop=stop,stop_pct=risk_pct,
-            pnl_per_share=pnl,partial_day5=partial,exit_reason=reason))
+            pnl_per_share=pnl,partial_day5=partial,exit_reason=reason,
+            move90_pct=round(move90*100,3),ema200_signal=float(x.at[i-1,"ema200"])))
     return trades
 
 def simulate(trades,risk_fraction,initial=10000.,leverage=5.,fee_bps=10.,max_stop_pct=None):
